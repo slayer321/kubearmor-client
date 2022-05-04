@@ -210,7 +210,15 @@ func regexMatcher(filter *regexp.Regexp, res string) bool {
 	return true
 }
 
-func watchAlertsHelper(res *pb.Alert, o Options) error {
+func watchAlertsHelper(res *pb.Alert, o Options, nameMap map[string]string) error {
+
+	if len(o.Selector) != 0 {
+
+		if res.PodName != nameMap[res.PodName] {
+			return nil
+		}
+	}
+
 	if o.Namespace != "" {
 		match := regexMatcher(CNamespace, res.NamespaceName)
 		if !match {
@@ -321,10 +329,17 @@ func watchAlertsHelper(res *pb.Alert, o Options) error {
 	return nil
 }
 
+var NameMap map[string]string
+
 // WatchAlerts Function
 func (fd *Feeder) WatchAlerts(o Options) error {
 	fd.WgClient.Add(1)
 	defer fd.WgClient.Done()
+
+	if len(o.Selector) != 0 {
+		NameMap = SelectLabel(o)
+		//fmt.Printf("printing the map of pods: %s\n", NameMap)
+	}
 
 	if o.Limit > 0 {
 		for i = 0; i < o.Limit; i++ {
@@ -333,7 +348,7 @@ func (fd *Feeder) WatchAlerts(o Options) error {
 				fmt.Printf("Failed to receive an alert (%s)\n", err.Error())
 				break
 			}
-			_ = watchAlertsHelper(res, o)
+			_ = watchAlertsHelper(res, o, NameMap)
 
 		}
 		Limitchan <- true
@@ -345,7 +360,7 @@ func (fd *Feeder) WatchAlerts(o Options) error {
 				fmt.Printf("Failed to receive an alert (%s)\n", err.Error())
 				break
 			}
-			_ = watchAlertsHelper(res, o)
+			_ = watchAlertsHelper(res, o, NameMap)
 
 		}
 	}
@@ -355,7 +370,15 @@ func (fd *Feeder) WatchAlerts(o Options) error {
 	return nil
 }
 
-func WatchLogsHelper(res *pb.Log, o Options) error {
+func WatchLogsHelper(res *pb.Log, o Options, nameMap map[string]string) error {
+
+	if len(o.Selector) != 0 {
+
+		if res.PodName != nameMap[res.PodName] {
+			return nil
+		}
+	}
+
 	if o.Namespace != "" {
 		match := regexMatcher(CNamespace, res.NamespaceName)
 		if !match {
@@ -451,7 +474,10 @@ func WatchLogsHelper(res *pb.Log, o Options) error {
 func (fd *Feeder) WatchLogs(o Options) error {
 	fd.WgClient.Add(1)
 	defer fd.WgClient.Done()
-
+	if len(o.Selector) != 0 {
+		NameMap = SelectLabel(o)
+		//fmt.Printf("printing the map of pods: %s\n", NameMap)
+	}
 	if o.Limit > 0 {
 		for i = 0; i < o.Limit; i++ {
 			res, err := fd.logStream.Recv()
@@ -459,7 +485,7 @@ func (fd *Feeder) WatchLogs(o Options) error {
 				fmt.Printf("Failed to receive an alert (%s)\n", err.Error())
 				break
 			}
-			_ = WatchLogsHelper(res, o)
+			_ = WatchLogsHelper(res, o, NameMap)
 		}
 		Limitchan <- true
 	} else {
@@ -469,7 +495,7 @@ func (fd *Feeder) WatchLogs(o Options) error {
 				fmt.Printf("Failed to receive an alert (%s)\n", err.Error())
 				break
 			}
-			_ = WatchLogsHelper(res, o)
+			_ = WatchLogsHelper(res, o, NameMap)
 
 		}
 	}
